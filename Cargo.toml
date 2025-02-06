@@ -1,6 +1,6 @@
 [package]
 name = "pu-239"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/zygomedia/pu-239"
@@ -13,4 +13,8 @@ proc-macro = true
 [dependencies]
 proc-macro2 = { version = "1", features = ["span-locations"] }
 quote = "1"
-syn = { version = "2", features = ["visit", "visit-mut", "full", "extra-traits"] }
+syn = { version = "2", features = ["visit", "full", "extra-traits", "parsing", "proc-macro", "printing", "clone-impls"], default-features = false }
+log = { version = "0.4", optional = true  }
+
+[features]
+trace = ["log"]

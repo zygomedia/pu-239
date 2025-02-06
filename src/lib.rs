@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 // use proc_macro2::{TokenStream, Ident, Span};
-use syn::visit::Visit;
+use syn::{spanned::Spanned, visit::Visit};
 use quote::{ToTokens, quote};
 // use std::fmt::Write;
 
@@ -33,7 +33,7 @@ pub fn server(_: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc
 		const HASH: u64 = #hash;
 
 		let args = (#(#arg_idents),*);
-		let mut serialized = Vec::with_capacity((::postcard::experimental::serialized_size(&HASH)? + ::postcard::experimental::serialized_size(&args)?) as usize);
+		let mut serialized = ::std::vec::Vec::with_capacity(::postcard::experimental::serialized_size(&HASH)? + ::postcard::experimental::serialized_size(&args)?);
 		::postcard::to_io(&HASH, &mut serialized)?;
 		::postcard::to_io(&args, &mut serialized)?;
 		Ok(::postcard::from_bytes(&crate::api::dispatch(serialized).await?)?)
@@ -58,7 +58,7 @@ impl<'a> Visitor<'a> {
 
 	fn write_out(&self, out: &mut Vec<syn::Item>) {
 		for f in &self.api_fns {
-			out.push(syn::Item::Fn(f.clone()));
+			out.push(syn::parse_quote!(#f));
 		}
 
 		for (module, sub_visitor) in &self.sub_visitors {
@@ -75,8 +75,24 @@ impl<'a> Visitor<'a> {
 			let current_path = &self.current_path.0;
 			let fn_ident = &f.sig.ident;
 			let fn_path = quote!(#(#current_path ::)*#fn_ident);
+			let arg_idents = &f.sig.inputs.iter().map(|x| match x {
+				syn::FnArg::Typed(x) => x.pat.clone(),
+				syn::FnArg::Receiver(_) => panic!("Expected typed argument"),
+			}).collect::<Vec<_>>();
+			#[cfg(feature = "trace")] let fn_path_str = fn_path.to_string().replace(" ", "");
+			#[cfg(feature = "trace")] let log_str_pre = format!("{fn_path_str}{{args:?}}");
+			#[cfg(feature = "trace")] let log_str_post = format!("{fn_path_str} -> {{res:?}}");
+			#[cfg(feature = "trace")] let maybe_trace_pre = quote!(log::trace!(#log_str_pre););
+			#[cfg(feature = "trace")] let maybe_trace_post = quote!(log::trace!(#log_str_post););
+			#[cfg(not(feature = "trace"))] let maybe_trace_pre = quote!();
+			#[cfg(not(feature = "trace"))] let maybe_trace_post = quote!();
 			out.push(syn::parse_quote!(#hash => {
-				Ok(::postcard::to_stdvec(&::std::ops::Fn::call(&#fn_path, ::postcard::from_io::<_, _>((&mut bytes, &mut scratch))?.0).await)?)
+				let args = ::postcard::from_io::<_, _>((&mut bytes, &mut scratch))?.0;
+				#maybe_trace_pre
+				let (#(#arg_idents),*) = args;
+				let res = #fn_path(#(#arg_idents),*).await;
+				#maybe_trace_post
+				Ok(::postcard::to_stdvec(&res)?)
 			}));
 		}
 
@@ -105,7 +121,13 @@ impl Visit<'_> for Visitor<'_> {
 			for seg in &visitor.current_path.0 {
 				path.push(seg.to_string());
 			}
-			path.set_extension("rs");
+
+			let name_rs = path.with_extension("rs");
+			let mod_rs = path.join("mod.rs");
+
+			let path = if name_rs.exists() { name_rs } else if mod_rs.exists() { mod_rs } else {
+				panic!("No file found for module {}, is there a loose mod declaration that isn't pointing anywhere?", visitor.current_path.0.last().unwrap())
+			};
 
 			let file = std::fs::read_to_string(&path).expect("Error reading file. Is there a loose mod declaration that isn't pointing anywhere?");
 			visitor.visit_file(&syn::parse_file(&file).unwrap());
@@ -125,22 +147,31 @@ impl Visit<'_> for Visitor<'_> {
 
 #[proc_macro]
 pub fn build_api(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
-	let root = syn::parse_macro_input!(item as syn::LitStr).value();
-	let root = std::path::PathBuf::from(root);
+	let roots = syn::parse_macro_input!(item as syn::ExprArray).elems.into_iter()
+		.map(|elem| {
+			let root: syn::LitStr = syn::parse_quote!(#elem);
+			std::path::PathBuf::from(root.value())
+		})
+		.collect::<Vec<_>>();
 
-	let mut visitor = Visitor::new(root.parent().unwrap(), (Vec::new(), Vec::new()));
-	visitor.visit_file(&syn::parse_file(&std::fs::read_to_string(&root).unwrap()).unwrap());
+	let visitors = roots.iter().map(|root| {
+		let mut visitor = Visitor::new(root.parent().unwrap(), (Vec::new(), Vec::new()));
+		visitor.visit_file(&syn::parse_file(&std::fs::read_to_string(root).unwrap()).unwrap());
+		visitor
+	}).collect::<Vec<_>>();
 
-	let mut out = Vec::<syn::Item>::with_capacity(visitor.api_fns.len() + visitor.sub_visitors.len());
-	visitor.write_out(&mut out);
+	let mut out = Vec::<syn::Item>::with_capacity(visitors.iter().map(|visitor| visitor.api_fns.len() + visitor.sub_visitors.len()).sum());
+	let mut arms = Vec::<syn::Arm>::with_capacity(visitors.iter().map(|visitor| visitor.total_fns()).sum());
 
-	let mut arms = Vec::<syn::Arm>::with_capacity(visitor.total_fns());
-	visitor.write_arms(&mut arms);
+	for visitor in visitors {
+		visitor.write_out(&mut out);
+		visitor.write_arms(&mut arms);
+	}
 
 	quote!(
 		#(#out)*
 
-		async fn deserialize_api_match(mut bytes: impl ::std::io::Read) -> ::std::result::Result<Vec<u8>, ::anyhow::Error> {
+		async fn deserialize_api_match(mut bytes: impl ::std::io::Read) -> ::std::result::Result<::std::vec::Vec<u8>, ::anyhow::Error> {
 			let mut scratch = [0u8; 2048];
 			let (hash, (mut bytes, _)) = ::postcard::from_io::<u64, _>((bytes, &mut scratch))?;
 			match hash {
