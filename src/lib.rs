@@ -1,12 +1,7 @@
 use std::collections::BTreeMap;
 
-// use proc_macro2::{TokenStream, Ident, Span};
-use syn::{spanned::Spanned, visit::Visit};
+use syn::visit::Visit;
 use quote::{ToTokens, quote};
-// use std::fmt::Write;
-
-// use syn::{visit::Visit, visit_mut::VisitMut};
-// use quote::quote;
 
 fn quick_hash<T: std::hash::Hash>(t: &T) -> u64 {
 	use std::{collections::hash_map::DefaultHasher, hash::Hasher};
