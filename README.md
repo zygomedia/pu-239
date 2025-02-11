@@ -2,7 +2,7 @@
 
 <a href="https://crates.io/crates/pu-239"><img alt="Crate Info" src="https://img.shields.io/crates/v/pu-239.svg"/></a>
 
-**pu-239** is a Rust crate that allows you to write server-side functions directly within your client-side code. It simplifies client-server communication by automating the serialization and transmission of function calls and their responses, as well as keeps relevant code closer together in an isomorphic applicaiton.    
+**pu-239** allows you to write server-side functions directly within your client-side code. It simplifies client-server communication by automating the serialization and transmission of function calls and their responses, as well as keeps relevant code closer together in an isomorphic applicaiton.    
 Probably most useful for small projects or prototyping.
 
 ## Usage
