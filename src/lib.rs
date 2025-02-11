@@ -82,7 +82,7 @@ impl<'a> Visitor<'a> {
 			#[cfg(not(feature = "trace"))] let maybe_trace_pre = quote!();
 			#[cfg(not(feature = "trace"))] let maybe_trace_post = quote!();
 			out.push(syn::parse_quote!(#hash => {
-				let args = ::postcard::from_io::<_, _>((&mut bytes, &mut scratch))?.0;
+				let args = ::postcard::from_io((&mut bytes, &mut scratch))?.0;
 				#maybe_trace_pre
 				let (#(#arg_idents),*) = args;
 				let res = #fn_path(#(#arg_idents),*).await;
