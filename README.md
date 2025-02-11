@@ -134,7 +134,7 @@ async fn deserialize_api_match(mut bytes: impl std::io::Read) -> anyhow::Result<
 ## Limitations
 - Compile errors in `#[pu_239::server]` will point at `pu239::build_api!` instead of the actual function
 - Serverside functions in `include!("some/path/foo.rs")` or `#[path = "foo.rs"] mod c;` will not work
-- Functions are distinguished by body hashes so changing any tokens in it will change the has
+- Functions are distinguished by body hashes so changing any tokens in it will change the hash
 
 ## TODO:
 - [ ] Remove dependency on `anyhow`
