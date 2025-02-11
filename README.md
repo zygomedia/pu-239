@@ -123,7 +123,7 @@ async fn deserialize_api_match(mut bytes: impl std::io::Read) -> anyhow::Result<
     let (hash, (mut bytes, _)) = postcard::from_io::<u64, _>((bytes, &mut scratch))?;
     match hash {
         18142343272683751701u64 => {
-            let (a, b) = postcard::from_io::<_, _>((&mut bytes, &mut scratch))?.0;
+            let (a, b) = postcard::from_io((&mut bytes, &mut scratch))?.0;
             let res = some_serverside_fn(a, b).await;
             Ok(postcard::to_stdvec(&res)?)
         }
