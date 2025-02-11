@@ -106,7 +106,8 @@ pub async fn some_serverside_fn(a: u64, b: i32) -> Result<f32, anyhow::Error> {
     const HASH: u64 = 18142343272683751701u64;
 
     let args = (a, b);
-    let mut serialized = Vec::with_capacity(postcard::experimental::serialized_size(&HASH)? + postcard::experimental::serialized_size(&args)?);
+    let mut serialized = Vec::with_capacity(postcard::experimental::serialized_size(&HASH)?
+        + postcard::experimental::serialized_size(&args)?);
     postcard::to_io(&HASH, &mut serialized)?;
     postcard::to_io(&args, &mut serialized)?;
     Ok(postcard::from_bytes(&crate::api::dispatch(serialized).await?)?)
