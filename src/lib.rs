@@ -133,7 +133,7 @@ impl Visit<'_> for Visitor<'_> {
 
 	fn visit_item_fn(&mut self, node: &syn::ItemFn) {
 		let pu_239_server: syn::Path = syn::parse_quote!(pu_239::server);
-		let Some(_api_attr) = node.attrs.iter().find(|attr| *attr.path() == pu_239_server) else { return; };
+		let Some(_api_attr) = node.attrs.iter().find(|attr| *attr.path() == pu_239_server) else { return syn::visit::visit_item_fn(self, node); };
 		let mut node = node.clone();
 		node.attrs.retain(|attr| *attr.path() != pu_239_server);
 		self.api_fns.push(node);
